@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { DataTable, DataTablePageEvent, DataTableSelectionChangeEvent } from "primereact/datatable";
+import { DataTable, DataTablePageEvent, DataTableSelectionCellChangeEvent } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { InputSwitch, InputSwitchChangeEvent } from "primereact/inputswitch";
 import "primereact/resources/themes/lara-light-cyan/theme.css";
@@ -25,7 +25,6 @@ export default function CheckboxRowSelectionDemo() {
     const [rowClick, setRowClick] = useState<boolean>(true);
     const [loading, setLoading] = useState<boolean>(false);
     const [totalRecords, setTotalRecords] = useState<number>(0); // Total records for paginator
-    const [rowsPerPage, setRowsPerPage] = useState<number>(12); // Default rows per page
     const [currentPage, setCurrentPage] = useState<number>(1);
 
     const op = useRef<OverlayPanel>(null!);
@@ -64,26 +63,24 @@ export default function CheckboxRowSelectionDemo() {
 
     // Handle page change in DataTable
     const handlePageChange = (event: DataTablePageEvent) => {
-        const page = event.page + 1; // PrimeReact uses zero-based pages, so increment by 1
+        const page = (event.page || 0) + 1; // PrimeReact uses zero-based pages, so increment by 1
         setCurrentPage(page); // Set the current page in state
         fetchApiData(page); // Fetch data for the new page
     };
 
     // Handle row selection across pages (including unselect)
-    const handleSelectionChange = (e: DataTableSelectionChangeEvent) => {
+    const handleSelectionChange = (e: DataTableSelectionCellChangeEvent) => {
         const selectedRows = e.value.map((product: Product) => product.id); // Current selected rows
     
         setSelectedProductIds((prevSelected) => {
-            // Check which items are newly selected and which are unselected
-            const newlySelected = selectedRows.filter(id => !prevSelected.includes(id)); // New selections
-            const unselected = prevSelected.filter(id => !selectedRows.includes(id)); // Unselected rows
+            const newlySelected = selectedRows.filter((id: string) => !prevSelected.includes(id)); // New selections
+            const unselected = prevSelected.filter((id: string) => !selectedRows.includes(id)); // Unselected rows
     
-            // Update the state: Add new selections, remove unselected items
             return [...prevSelected, ...newlySelected].filter(id => !unselected.includes(id));
         });
     };
 
-    const handleRowUnselection = (e: DataTableSelectionChangeEvent) => {
+    const handleRowUnselection = (e: DataTableSelectionCellChangeEvent) => {
         const deselectedRows = e.value.map((product: Product) => product.id); // Unselected rows
         setSelectedProductIds((prevSelected) => {
             return prevSelected.filter((id) => !deselectedRows.includes(id)); // Remove only unselected rows from the state
@@ -101,7 +98,6 @@ export default function CheckboxRowSelectionDemo() {
         let page = 1;
         let newSelectedProductIds: string[] = [];
 
-        // Fetch and select rows until the required number is selected
         while (selectedRowCount < numToSelect) {
             try {
                 const response = await axios.get(`https://api.artic.edu/api/v1/artworks?page=${page}`);
@@ -117,12 +113,11 @@ export default function CheckboxRowSelectionDemo() {
                 }));
 
                 const remainingToSelect = numToSelect - selectedRowCount;
-                const productsToSelect = mappedProducts.slice(0, remainingToSelect).map((product) => product.id);
+                const productsToSelect = mappedProducts.slice(0, remainingToSelect).map((product: Product) => product.id);
 
                 newSelectedProductIds = [...newSelectedProductIds, ...productsToSelect];
                 selectedRowCount += productsToSelect.length;
 
-                // Move to next page if more rows need to be selected
                 page++;
                 setRowInputValue("");
             } catch (error) {
@@ -131,7 +126,6 @@ export default function CheckboxRowSelectionDemo() {
             }
         }
 
-        // Update state to reflect selected rows across pages
         setSelectedProductIds((prevSelected) => {
             const finalSelection = [...prevSelected, ...newSelectedProductIds].filter(
                 (value, index, self) => self.indexOf(value) === index // Ensure no duplicates
@@ -168,35 +162,30 @@ export default function CheckboxRowSelectionDemo() {
 
             {loading ? (
                 <div className="flex justify-content-center align-items-center" style={{ height: "200px" }}>
-                    <ProgressSpinner style={{ width: "50px", height: "50px" }} strokeWidth="8" fill="var(--surface-ground)" animationDuration=".5s" />
+                    <ProgressSpinner style={{ width: "50px", height: "50px" }} strokeWidth="8" />
                 </div>
             ) : (
                 <DataTable
-    value={products}
-    paginator
-    rows={rowsPerPage}
-    totalRecords={totalRecords}
-    lazy
-    first={(currentPage - 1) * rowsPerPage} // Set the starting point for pagination
-    onPage={handlePageChange} // Handle page change event
-    selection={products.filter((product) => selectedProductIds.includes(product.id))} // Filter selected products
-    selectionMode={rowClick ? "single" : "multiple"} // Single or multiple selection based on InputSwitch
-    onSelectionChange={handleSelectionChange} // Handle row selection change
-    onUnselect={handleRowUnselection} // Handle row unselection
-    dataKey="id"
-    tableStyle={{ minWidth: "50rem" }}
->
-    {!rowClick && (
-        <Column selectionMode="multiple" headerStyle={{ width: "3rem" }} />
-    )}
-    <Column field="title" header="Title"></Column>
-    <Column field="place_of_origin" header="Place of Origin"></Column>
-    <Column field="artist_display" header="Artist"></Column>
-    <Column field="date_start" header="Date Start"></Column>
-    <Column field="date_end" header="Date End"></Column>
-</DataTable>
-
-
+                    value={products}
+                    selectionMode="multiple"
+                    selection={products.filter((product: Product) => selectedProductIds.includes(product.id))} // Select across pages
+                    onSelectionChange={handleSelectionChange}
+                    dataKey="id"
+                    paginator
+                    rows={12}
+                    totalRecords={totalRecords}
+                    lazy
+                    first={(currentPage - 1) * 12}
+                    onPage={handlePageChange}
+                    onSelect={handleRowUnselection}
+                >
+                    <Column selectionMode="multiple" headerStyle={{ width: "3em" }}></Column>
+                    <Column field="title" header="Title"></Column>
+                    <Column field="place_of_origin" header="Place of Origin"></Column>
+                    <Column field="artist_display" header="Artist"></Column>
+                    <Column field="date_start" header="Start Date"></Column>
+                    <Column field="date_end" header="End Date"></Column>
+                </DataTable>
             )}
         </div>
     );
